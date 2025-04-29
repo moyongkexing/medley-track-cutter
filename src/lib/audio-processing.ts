@@ -1,17 +1,4 @@
-    // トラック数が多い場合、進捗表示を微調整するためのヘルパー関数
-    const reportProgress = (currentIndex: number, currentProgress: number = 0) => {
-      if (onProgress) {
-        // 各トラックは全体の1/Nの進捗を持つ
-        // 対象のトラックの基本進捗値
-        const baseProgress = currentIndex / selectedTracks.length;
-        // 現在のトラックの作業進捗（週後のトラックの重み付け）
-        const currentWeight = 1 / selectedTracks.length;
-        // 全体の進捗状況を計算
-        const totalProgress = baseProgress + (currentProgress * currentWeight);
-
-        onProgress(totalProgress, currentIndex + 1, selectedTracks.length);
-      }
-    };import { FFmpeg } from "@ffmpeg/ffmpeg";
+import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile,  } from "@ffmpeg/util";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -252,7 +239,7 @@ export const detectTracks = async (
     console.log('File written to FFmpeg filesystem');
     
     // トラック数が多い場合、進捗表示を微調整するためのヘルパー関数
-    const reportProgress = (currentIndex: number, currentProgress: number = 0) => {
+    const reportProgress = (currentIndex: number, currentProgress = 0) => {
       if (onProgress) {
         // 各トラックは全体の1/Nの進捗を持つ
         // 対象のトラックの基本進捗値 (現在のインデックス/全体のトラック数)
@@ -415,7 +402,7 @@ export const extractTracks = async (
     ffmpeg.off('progress');
     
     // トラック数が多い場合、進捗表示を微調整するためのヘルパー関数
-    const reportProgress = (currentIndex: number, currentProgress: number = 0) => {
+    const reportProgress = (currentIndex: number, currentProgress = 0) => {
       if (onProgress) {
         // 各トラックは全体の1/Nの進捗を持つ
         // 対象のトラックの基本進捗値
