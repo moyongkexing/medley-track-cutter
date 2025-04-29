@@ -2,6 +2,8 @@
 
 アップロードしたmp3ファイルを無音区間で分割します。また、それぞれを個別にダウンロードすることができます。
 
+![Image](https://github.com/user-attachments/assets/2773c100-afb9-4787-9dc3-5c525d03dfcb)
+
 ## 特徴
 
 - ブラウザ上で動作し、サーバーへのアップロードが不要（WebAssemblyを使用）
