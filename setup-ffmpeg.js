@@ -1,24 +1,14 @@
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require("node:fs");
+const path = require("node:path");
 
 // FFmpegのコアファイルのパス
-const ffmpegCorePath = path.join(
-  __dirname,
-  'node_modules',
-  '@ffmpeg',
-  'core',
-  'dist',
-  'umd'
-);
+const ffmpegCorePath = path.join(__dirname, "node_modules", "@ffmpeg", "core", "dist", "umd");
 
 // publicディレクトリのパス
-const publicPath = path.join(__dirname, 'public');
+const publicPath = path.join(__dirname, "public");
 
 // コピーするファイル
-const filesToCopy = [
-  'ffmpeg-core.js',
-  'ffmpeg-core.wasm',
-];
+const filesToCopy = ["ffmpeg-core.js", "ffmpeg-core.wasm"];
 
 // v0.12以降ではworkerの構造が変わったため、コピーする必要がなくなりました
 // workerはBLOB URLでロードされるようになったので、この部分はコメントアウト
@@ -63,4 +53,4 @@ const workerDest = path.join(publicPath, workerFile);
 copyFile(workerSrc, workerDest);
 */
 
-console.log('FFmpeg setup completed!');
+console.log("FFmpeg setup completed!");

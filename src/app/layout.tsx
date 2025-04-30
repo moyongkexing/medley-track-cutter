@@ -18,22 +18,9 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        <link
-          rel="preload"
-          href="/ffmpeg-core.js"
-          as="script"
-        />
-        <link 
-          rel="preload" 
-          href="/ffmpeg-core.wasm" 
-          as="fetch" 
-          crossOrigin="anonymous" 
-        />
-        <link
-          rel="preload"
-          href="/ffmpeg-worker.js"
-          as="script"
-        />
+        <link rel="preload" href="/ffmpeg-core.js" as="script" />
+        <link rel="preload" href="/ffmpeg-core.wasm" as="fetch" crossOrigin="anonymous" />
+        <link rel="preload" href="/ffmpeg-worker.js" as="script" />
       </head>
       <body className={inter.className}>
         {children}
