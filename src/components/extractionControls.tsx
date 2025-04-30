@@ -1,9 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radioGroup";
 import { Slider } from "@/components/ui/slider";
-import { type TrackDetectionOptions, defaultTrackDetectionOptions } from "@/lib/audio-processing";
+import { type TrackDetectionOptions, defaultTrackDetectionOptions } from "@/lib/audioProcessing";
 import type React from "react";
 import { useState } from "react";
 

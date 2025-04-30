@@ -2,7 +2,7 @@ import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { fetchFile,  } from "@ffmpeg/util";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
-import { detectMusicBoundaries, createTracksFromBoundaries, analyzeAudioFile, type SpectralDetectionOptions } from "./spectral-detection";
+import { detectMusicBoundaries, createTracksFromBoundaries, analyzeAudioFile, type SpectralDetectionOptions } from "./spectralDetection";
 
 // FFmpegのログを格納する変数
 let ffmpegLogs: string = '';

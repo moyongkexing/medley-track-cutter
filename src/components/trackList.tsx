@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Track } from "@/lib/audio-processing";
+import type { Track } from "@/lib/audioProcessing";
 import { formatTime } from "@/lib/utils";
 import { Loader2, Pause, Play } from "lucide-react";
 import type React from "react";
@@ -12,6 +12,8 @@ interface TrackListProps {
   onPreviewPlay?: (trackId: number) => Promise<string | undefined>;
   audioFile?: File | null;
   ffmpeg?: any;
+  playingTrackId?: number | null;
+  loadingTrackId?: number | null;
 }
 
 export function TrackList({
@@ -20,15 +22,17 @@ export function TrackList({
   onPreviewPlay,
   audioFile,
   ffmpeg,
+  playingTrackId: externalPlayingTrackId,
+  loadingTrackId: externalLoadingTrackId,
 }: TrackListProps) {
   // 全選ボタンの状態を管理する状態変数
   const [allSelected, setAllSelected] = useState(false);
-  // 現在再生中のトラックIDを管理
-  const [playingTrackId, setPlayingTrackId] = useState<number | null>(null);
-  // 現在ロード中のトラックIDを管理
-  const [loadingTrackId, setLoadingTrackId] = useState<number | null>(null);
   // 音声再生のためのaudio要素への参照
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  
+  // 内部状態または外部から提供される状態を使用
+  const playingTrackId = externalPlayingTrackId !== undefined ? externalPlayingTrackId : null;
+  const loadingTrackId = externalLoadingTrackId !== undefined ? externalLoadingTrackId : null;
 
   // 全選/全解除の処理
   const handleSelectAll = () => {
@@ -36,88 +40,24 @@ export function TrackList({
     setAllSelected(newSelectedState);
 
     // 全てのトラックに対して選択状態を適用
-    tracks.forEach(track => {
+    for (const track of tracks) {
       onTrackToggle(track.id, newSelectedState);
-    });
+    }
   };
 
   // プレビュー再生用の処理
   const handlePreviewToggle = async (trackId: number, e: React.MouseEvent) => {
     e.stopPropagation(); // イベントの伝播を停止
 
-    if (!audioFile || !ffmpeg) {
+    if (!audioFile || !ffmpeg || !onPreviewPlay) {
       console.warn("オーディオファイルまたはFFmpegが利用できません");
       return;
     }
 
-    // 現在再生中のトラックがクリックされた場合は停止
-    if (playingTrackId === trackId) {
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-      setPlayingTrackId(null);
-      return;
-    }
-
-    // 既に他のトラックが再生中の場合は停止
-    if (playingTrackId !== null && audioRef.current) {
-      audioRef.current.pause();
-      setPlayingTrackId(null);
-    }
-
-    try {
-      // ロード中状態をセット
-      setLoadingTrackId(trackId);
-
-      if (onPreviewPlay) {
-        // トラックのプレビューURLを取得
-        const url = await onPreviewPlay(trackId);
-
-        // URLが取得できた場合のみ処理
-        if (url) {
-          // audio要素を作成
-          const audio = new Audio();
-
-          // ロード完了時の処理
-          audio.oncanplaythrough = () => {
-            setLoadingTrackId(null);
-            setPlayingTrackId(trackId);
-          };
-
-          // 再生終了時の処理
-          audio.onended = () => {
-            setPlayingTrackId(null);
-          };
-
-          // エラー発生時の処理
-          audio.onerror = () => {
-            setLoadingTrackId(null);
-            console.error("音声のロード中にエラーが発生しました");
-          };
-
-          // ソースを設定
-          audio.src = url;
-
-          // 参照を保存
-          audioRef.current = audio;
-
-          // 再生開始
-          audio.play().catch(err => {
-            console.error("再生エラー:", err);
-            setLoadingTrackId(null);
-          });
-        } else {
-          setLoadingTrackId(null);
-        }
-      } else {
-        setLoadingTrackId(null);
-      }
-    } catch (error) {
-      console.error(`プレビュー再生エラー:`, error);
-      setPlayingTrackId(null);
-      setLoadingTrackId(null);
-    }
+    // プレビュー再生ハンドラを呼び出す
+    await onPreviewPlay(trackId);
   };
+
   return (
     <div className="border rounded-md p-4 my-4">
       <h2 className="text-xl font-bold mb-4">分割された曲 ({tracks.length})</h2>

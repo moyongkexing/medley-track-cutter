@@ -1,285 +1,99 @@
 "use client";
 
-import { AudioUploader } from "@/components/audio-uploader";
-import { DownloadLinks } from "@/components/download-links";
-import { ExtractionControls } from "@/components/extraction-controls";
-import { ProgressIndicator } from "@/components/progress-indicator";
-import { TrackList } from "@/components/track-list";
-import { useCallback, useEffect, useState } from "react";
+import { AudioUploader } from "@/components/audioUploader";
+import { DownloadLinks } from "@/components/downloadLinks";
+import { ExtractionControls } from "@/components/extractionControls";
+import { ProgressIndicator } from "@/components/progressIndicator";
+import { TrackList } from "@/components/trackList";
+import { useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  type Track,
-  type TrackDetectionOptions,
-  clearPreviewCache,
-  createFFmpeg,
-  createTrackPreview,
-  detectTracks,
-  downloadTracksAsZip,
-  extractTracks,
-} from "@/lib/audio-processing";
+import { useFFmpeg } from "@/hooks/useFFmpeg";
+import { useAudioFile } from "@/hooks/useAudioFile";
+import { useTrackDetection } from "@/hooks/useTrackDetection";
+import { useTrackPreview } from "@/hooks/useTrackPreview";
+import { useTrackExtraction } from "@/hooks/useTrackExtraction";
+import { useTrackDownload } from "@/hooks/useTrackDownload";
 
 export default function Home() {
-  const [ffmpeg, setFFmpeg] = useState<any>(null);
-  const [isFFmpegLoaded, setIsFFmpegLoaded] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
-  const [audioFile, setAudioFile] = useState<File | null>(null);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
-  const [trackUrls, setTrackUrls] = useState<string[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<Map<number, string>>(new Map());
+  // FFmpeg関連のフック
+  const { ffmpeg  } = useFFmpeg();
+  
+  // オーディオファイル関連のフック
+  const {
+    audioFile,
+    trackUrls,
+    setTrackUrls,
+    previewUrls,
+    setPreviewUrls,
+    handleFileSelected,
+    cleanup
+  } = useAudioFile();
+  
+  // トラック検出関連のフック
+  const {
+    isProcessing,
+    setIsProcessing,
+    progress,
+    setProgress,
+    progressMessage,
+    setProgressMessage,
+    tracks,
+    setTracks,
+    handleDetectTracks,
+    handleTrackToggle
+  } = useTrackDetection();
+  
+  // プレビュー再生関連のフック
+  const { 
+    playingTrackId,
+    loadingTrackId,
+    handlePreviewTrack
+  } = useTrackPreview();
+  
+  // トラック抽出関連のフック
+  const { handleExtractSelected } = useTrackExtraction(
+    isProcessing,
+    setIsProcessing,
+    setProgress,
+    setProgressMessage,
+    setTrackUrls
+  );
+  
+  // ダウンロード関連のフック
+  const { handleDownloadAll } = useTrackDownload();
 
-  const { toast } = useToast();
-
-  // FFmpeg をロードする
+  // アンマウント時のクリーンアップ
   useEffect(() => {
-    const loadFFmpeg = async () => {
-      try {
-        const ffmpegInstance = await createFFmpeg();
-        setFFmpeg(ffmpegInstance);
-        setIsFFmpegLoaded(true);
-        // 初期化完了のトースト表示を削除
-      } catch (error) {
-        console.error("FFmpeg failed to load:", error);
-        toast({
-          title: "エラー",
-          description: "処理エンジンの読み込みに失敗しました",
-          variant: "destructive",
-        });
-      }
-    };
+    return cleanup;
+  }, [cleanup]);
 
-    loadFFmpeg();
+  // トラック検出を行うラッパー関数
+  const onDetectTracks = async (options) => {
+    await handleDetectTracks(ffmpeg, audioFile, options);
+  };
 
-    // Cleanup URLs on unmount
-    return () => {
-      // 抽出ファイルのURLをクリーンアップ
-      trackUrls.forEach(url => URL.revokeObjectURL(url));
+  // トラック抽出を行うラッパー関数
+  const onExtractSelected = async () => {
+    await handleExtractSelected(ffmpeg, audioFile, tracks, trackUrls);
+  };
 
-      // プレビューURLもクリーンアップ
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-
-      // プレビューキャッシュもクリア
-      clearPreviewCache();
-    };
-  }, [trackUrls, previewUrls, toast]);
-
-  const handleFileSelected = useCallback(
-    (file: File) => {
-      // Cleanup previous URLs
-      trackUrls.forEach(url => URL.revokeObjectURL(url));
-
-      // プレビューURLもクリーンアップ
-      previewUrls.forEach(url => URL.revokeObjectURL(url));
-      setPreviewUrls(new Map());
-
-      // プレビューキャッシュをクリア
-      clearPreviewCache();
-
-      setAudioFile(file);
-      setTracks([]);
-      setTrackUrls([]);
-      setProgress(0);
-      setProgressMessage("");
-
-      toast({
-        title: "ファイルを選択しました",
-        description: file.name,
-      });
-    },
-    [trackUrls, previewUrls],
-  );
-
-  // トラックのプレビュー再生処理
-  const handlePreviewTrack = useCallback(
-    async (trackId: number): Promise<string | undefined> => {
-      if (!ffmpeg || !audioFile || !tracks.length) return undefined;
-
-      try {
-        // 対象のトラックを見つける
-        const track = tracks.find(t => t.id === trackId);
-        if (!track) return undefined;
-
-        // すでにプレビューURLがあるか確認
-        if (previewUrls.has(trackId)) {
-          try {
-            // キャッシュされているURLを返す
-            const url = previewUrls.get(trackId);
-            console.log(`Using cached preview URL for track ${trackId}`);
-
-            // 有効性チェックは省略 (Blobベースのオブジェクトなので通常は有効)
-            return url;
-          } catch (e) {
-            console.warn(`Error with cached URL for track ${trackId}:`, e);
-            // キャッシュから削除してリトライ
-            const url = previewUrls.get(trackId);
-            if (url) URL.revokeObjectURL(url);
-            setPreviewUrls(prev => {
-              const newMap = new Map(prev);
-              newMap.delete(trackId);
-              return newMap;
-            });
-          }
-        }
-
-        // プレビュー用の音声を生成
-        const previewBlob = await createTrackPreview(ffmpeg, audioFile, track, 10);
-
-        // BlobからURLを作成
-        const previewUrl = URL.createObjectURL(previewBlob);
-
-        // URLを保存
-        setPreviewUrls(prev => {
-          const newMap = new Map(prev);
-          newMap.set(trackId, previewUrl);
-          return newMap;
-        });
-
-        // 生成したURLを返す
-        return previewUrl;
-      } catch (error) {
-        console.error("プレビュー作成エラー:", error);
-        toast({
-          title: "エラー",
-          description: "プレビューの作成中にエラーが発生しました",
-          variant: "destructive",
-        });
-        return undefined;
-      }
-    },
-    [ffmpeg, audioFile, tracks, previewUrls, toast],
-  );
-
-  const handleDetectTracks = useCallback(
-    async (options: TrackDetectionOptions) => {
-      if (!ffmpeg || !audioFile) return;
-
-      setIsProcessing(true);
-      setProgressMessage("曲を分割中...");
-      setProgress(0);
-
-      try {
-        const detectedTracks = await detectTracks(ffmpeg, audioFile, options, progress => {
-          if (progress !== undefined) {
-            // 進捗状態をパーセント表示に変換 (0-100%)
-            const progressPercent = Math.max(0, Math.min(100, progress * 100));
-            setProgress(progressPercent);
-          }
-        });
-
-        setTracks(detectedTracks);
-        toast({
-          title: "曲の分割が完了しました",
-          description: `${detectedTracks.length}曲に分割されました`,
-        });
-      } catch (error) {
-        console.error("Track detection error:", error);
-        toast({
-          title: "エラー",
-          description: "曲の分割中にエラーが発生しました",
-          variant: "destructive",
-        });
-      } finally {
-        setIsProcessing(false);
-      }
-    },
-    [ffmpeg, audioFile, toast],
-  );
-
-  const handleTrackToggle = useCallback((trackId: number, selected: boolean) => {
-    setTracks(prevTracks =>
-      prevTracks.map(track => (track.id === trackId ? { ...track, selected } : track)),
+  // プレビュー再生を行うラッパー関数
+  const onPreviewTrack = async (trackId) => {
+    return await handlePreviewTrack(
+      trackId,
+      ffmpeg,
+      audioFile,
+      tracks,
+      previewUrls,
+      setPreviewUrls
     );
-  }, []);
+  };
 
-  const handleExtractSelected = useCallback(async () => {
-    if (!ffmpeg || !audioFile || tracks.length === 0) return;
-
-    const selectedTracks = tracks.filter(track => track.selected);
-    if (selectedTracks.length === 0) {
-      toast({
-        title: "エラー",
-        description: "抽出する曲が選択されていません",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsProcessing(true);
-    setProgressMessage("曲を抽出中...");
-    setProgress(0);
-
-    try {
-      // Cleanup previous URLs
-      trackUrls.forEach(url => URL.revokeObjectURL(url));
-
-      const extractedBlobs = await extractTracks(
-        ffmpeg,
-        audioFile,
-        tracks,
-        (progress, current, total) => {
-          // 進捗状態を正確に更新する
-          if (progress !== undefined) {
-            // 進捗状態をパーセント表示に変換 (0-100%)
-            const progressPercent = Math.max(0, Math.min(100, progress * 100));
-            setProgress(progressPercent);
-          }
-
-          // ステータスメッセージを更新
-          if (current !== undefined && total !== undefined) {
-            setProgressMessage(`曲を抽出中... (${current}/${total})`);
-          }
-        },
-      );
-
-      // Create URLs for the extracted tracks
-      const urls = extractedBlobs.map(blob => URL.createObjectURL(blob));
-      setTrackUrls(urls);
-
-      toast({
-        title: "抽出が完了しました",
-        description: `${urls.length}曲の抽出が完了しました`,
-      });
-    } catch (error) {
-      console.error("Track extraction error:", error);
-      toast({
-        title: "エラー",
-        description: "曲の抽出中にエラーが発生しました",
-        variant: "destructive",
-      });
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [ffmpeg, audioFile, tracks, trackUrls, toast]);
-
-  const handleDownloadAll = useCallback(() => {
-    if (!audioFile || trackUrls.length === 0) return;
-
-    // Create a blob for each URL
-    const selectedTracks = tracks.filter(track => track.selected);
-    const blobs = trackUrls.map(url => {
-      const response = fetch(url)
-        .then(res => res.blob())
-        .catch(err => {
-          console.error("Failed to fetch blob:", err);
-          return new Blob();
-        });
-      return response;
-    });
-
-    // When all blobs are ready
-    Promise.all(blobs).then(blobResults => {
-      downloadTracksAsZip(selectedTracks, blobResults, audioFile.name);
-
-      toast({
-        title: "ダウンロード開始",
-        description: "ZIPファイルのダウンロードが開始されました",
-      });
-    });
-  }, [audioFile, tracks, trackUrls, toast]);
+  // ダウンロードを行うラッパー関数
+  const onDownloadAll = () => {
+    handleDownloadAll(audioFile, tracks, trackUrls);
+  };
 
   return (
     <main className="container max-w-4xl mx-auto py-8 px-4">
@@ -302,7 +116,7 @@ export default function Home() {
           <div>
             <h2 className="text-xl font-bold mb-4">2. 設定と分割</h2>
             <ExtractionControls
-              onDetectTracks={handleDetectTracks}
+              onDetectTracks={onDetectTracks}
               isProcessing={isProcessing}
               hasAudioFile={audioFile !== null}
             />
@@ -332,13 +146,15 @@ export default function Home() {
               onTrackToggle={handleTrackToggle}
               ffmpeg={ffmpeg}
               audioFile={audioFile}
-              onPreviewPlay={handlePreviewTrack}
+              onPreviewPlay={onPreviewTrack}
+              playingTrackId={playingTrackId}
+              loadingTrackId={loadingTrackId}
             />
 
             {/* 「選択した曲を抽出」ボタンをリストの下に配置 */}
             <div className="mt-4">
               <Button
-                onClick={handleExtractSelected}
+                onClick={onExtractSelected}
                 disabled={isProcessing || !tracks.some(track => track.selected)}
                 variant="default"
                 className="w-full"
@@ -354,7 +170,7 @@ export default function Home() {
             tracks={tracks.filter(track => track.selected)}
             trackUrls={trackUrls}
             originalFilename={audioFile.name}
-            onDownloadAll={handleDownloadAll}
+            onDownloadAll={onDownloadAll}
           />
         )}
       </>
