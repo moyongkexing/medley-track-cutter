@@ -1,3 +1,7 @@
+import type { FFmpeg } from "@ffmpeg/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+import type { Track } from "./audio-processing";
+
 export const extractTracks = async (
   ffmpeg: FFmpeg,
   audioFile: File,
