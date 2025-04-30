@@ -20,13 +20,3 @@ export function formatTimeWithMilliseconds(seconds: number): string {
     .padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
 }
 
-export function parseIndicesInput(input: string): number[] {
-  if (!input.trim()) return [];
-  
-  return input
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0)
-    .map((part) => parseInt(part, 10))
-    .filter((num) => !isNaN(num));
-}

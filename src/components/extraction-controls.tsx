@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { parseIndicesInput } from "@/lib/utils";
 import { defaultTrackDetectionOptions, type TrackDetectionOptions } from "@/lib/audio-processing";
 
 interface ExtractionControlsProps {
@@ -91,11 +90,6 @@ export function ExtractionControls({
     }));
   };
 
-  const handleIndicesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const input = e.target.value;
-    setTrackIndices(input);
-    onTrackIndicesChange(parseIndicesInput(input));
-  };
 
   return (
     <div className="space-y-4 my-4">
