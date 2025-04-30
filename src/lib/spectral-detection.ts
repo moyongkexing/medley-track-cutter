@@ -79,23 +79,32 @@ export function extractSpectralFeatures(
       'zcr'
     ], frame);
     
-    // スペクトルフラックス（前フレームとの差分）を計算
-    let spectralFlux = 0;
-    if (prevFeatures) {
-      spectralFlux = Math.abs(meydaFeatures.spectralCentroid - prevFeatures.spectralCentroid) / 10000;
+    // meydaFeaturesがnullでないことを確認
+    if (meydaFeatures && 
+        typeof meydaFeatures.spectralCentroid !== 'undefined' && 
+        typeof meydaFeatures.spectralFlatness !== 'undefined' && 
+        typeof meydaFeatures.spectralRolloff !== 'undefined' && 
+        typeof meydaFeatures.rms !== 'undefined' && 
+        typeof meydaFeatures.zcr !== 'undefined') {
+      
+      // スペクトルフラックス（前フレームとの差分）を計算
+      let spectralFlux = 0;
+      if (prevFeatures && typeof prevFeatures.spectralCentroid !== 'undefined') {
+        spectralFlux = Math.abs(meydaFeatures.spectralCentroid - prevFeatures.spectralCentroid) / 10000;
+      }
+      
+      prevFeatures = meydaFeatures;
+      
+      features.push({
+        time,
+        spectralCentroid: meydaFeatures.spectralCentroid,
+        spectralFlatness: meydaFeatures.spectralFlatness,
+        spectralRolloff: meydaFeatures.spectralRolloff,
+        spectralFlux,
+        rms: meydaFeatures.rms,
+        zcr: meydaFeatures.zcr
+      });
     }
-    
-    prevFeatures = meydaFeatures;
-    
-    features.push({
-      time,
-      spectralCentroid: meydaFeatures.spectralCentroid,
-      spectralFlatness: meydaFeatures.spectralFlatness,
-      spectralRolloff: meydaFeatures.spectralRolloff,
-      spectralFlux,
-      rms: meydaFeatures.rms,
-      zcr: meydaFeatures.zcr
-    });
   }
   
   return features;

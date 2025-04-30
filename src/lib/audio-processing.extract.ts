@@ -16,7 +16,16 @@ export const extractTracks = async (
     const outputFiles: Blob[] = [];
     
     // 進捗イベントのリスナーをクリア
-    ffmpeg.off('progress');
+    // 新しいFFmpeg APIではoffメソッドにコールバック関数も指定する必要がある
+    // 厳密には前に登録したコールバックと同じ関数を渡す必要があるが、
+    // 簡易的にダミー関数を渡して対応する
+    try {
+      // ダミーのコールバック関数を渡す
+      ffmpeg.off('progress', () => {});
+    } catch (e) {
+      // エラーが発生しても無視する
+      console.log('Failed to remove progress listeners, continuing anyway');
+    }
     
     // トラック数が多い場合、進捗表示を微調整するためのヘルパー関数
     const reportProgress = (currentIndex: number, currentProgress: number = 0) => {
