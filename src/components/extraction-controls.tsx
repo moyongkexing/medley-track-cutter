@@ -9,23 +9,18 @@ import { defaultTrackDetectionOptions, type TrackDetectionOptions } from "@/lib/
 
 interface ExtractionControlsProps {
   onDetectTracks: (options: TrackDetectionOptions) => void;
-  onTrackIndicesChange: (indices: number[]) => void;
   isProcessing: boolean;
-  hasTracksDetected: boolean;
   hasAudioFile: boolean;
 }
 
 export function ExtractionControls({
   onDetectTracks,
-  onTrackIndicesChange,
   isProcessing,
-  hasTracksDetected,
   hasAudioFile,
 }: ExtractionControlsProps) {
   const [trackOptions, setTrackOptions] = useState<TrackDetectionOptions>({
     ...defaultTrackDetectionOptions
   });
-  const [trackIndices, setTrackIndices] = useState("");
 
   const handleSilenceThresholdChange = (value: number[]) => {
     setTrackOptions(prev => ({

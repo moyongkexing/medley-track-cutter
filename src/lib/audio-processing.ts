@@ -7,6 +7,9 @@ import { detectMusicBoundaries, createTracksFromBoundaries, analyzeAudioFile, ty
 // FFmpegのログを格納する変数
 let ffmpegLogs: string = '';
 
+// プレビュー用の音声を抽出するためのキャッシュ
+const previewCache = new Map<string, Blob>();
+
 export interface Track {
   id: number;
   startTime: number; // in seconds
@@ -509,6 +512,137 @@ export const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
   return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+};
+
+/**
+ * トラックの冒頭部分のみを抽出するプレビュー用関数
+ * @param ffmpeg FFmpegのインスタンス
+ * @param audioFile オーディオファイル
+ * @param track プレビューするトラック
+ * @param previewDuration プレビューの長さ（秒）、デフォルトは10秒
+ * @returns プレビュー用のBlobオブジェクト
+ */
+export const createTrackPreview = async (
+  ffmpeg: FFmpeg,
+  audioFile: File,
+  track: Track,
+  previewDuration: number = 10
+): Promise<Blob> => {
+  try {
+    // プレビューのキャッシュキーを生成
+    const cacheKey = `${audioFile.name}_${track.id}_${track.startTime}_${previewDuration}`;
+    
+    // キャッシュにあればそれを返す
+    if (previewCache.has(cacheKey)) {
+      console.log(`Using cached preview for track ${track.id}`);
+      return previewCache.get(cacheKey)!;
+    }
+    
+    console.log(`Creating preview for track ${track.id}: ${track.startTime}s`);
+    
+    // FFmpegファイルシステムのクリーンアップ
+    try {
+      // すべての一時ファイルを削除（クリーンな状態から始める）
+      try {
+        await ffmpeg.deleteFile('input');
+        console.log('Cleaned up old input file');
+      } catch (e) {
+        // ファイルがない場合はエラー無視
+      }
+      
+      try {
+        const previewFilename = `preview_${track.id}.mp3`;
+        await ffmpeg.deleteFile(previewFilename);
+        console.log(`Cleaned up old ${previewFilename} file`);
+      } catch (e) {
+        // ファイルがない場合はエラー無視
+      }
+    } catch (e) {
+      console.log('Some cleanup operations failed but we can continue', e);
+    }
+    
+    // ファイルをFFmpegのファイルシステムに書き込む
+    try {
+      console.log('Fetching audio file data...');
+      const fileData = await fetchFile(audioFile);
+      console.log(`File data fetched, size: ${fileData.byteLength} bytes`);
+      
+      console.log('Writing file to FFmpeg filesystem...');
+      await ffmpeg.writeFile("input", fileData);
+      console.log('Input file written successfully');
+    } catch (e) {
+      console.error('Error writing file to FFmpeg:', e);
+      throw new Error(`FFmpegファイルシステムへの書き込みエラー: ${e}`);
+    }
+    
+    // プレビュー終了時間（トラック開始から指定秒数後、またはトラック終了時間のいずれか短い方）
+    const previewEndTime = Math.min(track.startTime + previewDuration, track.endTime);
+    
+    // FFmpegコマンドを構築
+    const previewFilename = `preview_${track.id}.mp3`;
+    const startTimeStr = track.startTime.toString();
+    const endTimeStr = previewEndTime.toString();
+    
+    try {
+      console.log(`Executing FFmpeg: extract from ${startTimeStr}s to ${endTimeStr}s`);
+      // プレビュー用の音声を抽出
+      await ffmpeg.exec([
+        "-i", "input",
+        "-ss", startTimeStr,
+        "-to", endTimeStr,
+        "-c:a", "libmp3lame",
+        "-q:a", "2",
+        previewFilename
+      ]);
+      console.log(`FFmpeg execution completed: ${previewFilename} created`);
+    } catch (e) {
+      console.error('Error executing FFmpeg:', e);
+      throw new Error(`FFmpeg実行エラー: ${e}`);
+    }
+    
+    try {
+      console.log(`Reading output file: ${previewFilename}`);
+      // 出力ファイルを読み込む
+      const data = await ffmpeg.readFile(previewFilename);
+      console.log(`Preview file read, size: ${data.byteLength} bytes`);
+      
+      // Blobオブジェクトを作成（明示的にMIMEタイプを指定）
+      const blob = new Blob([data], { type: "audio/mpeg" });
+      console.log(`Blob created, size: ${blob.size} bytes, type: ${blob.type}`);
+      
+      // メモリを節約するために出力ファイルを削除
+      try {
+        await ffmpeg.deleteFile(previewFilename);
+        console.log(`Deleted temporary file: ${previewFilename}`);
+      } catch (e) {
+        console.log('Error deleting preview file but we can continue', e);
+      }
+      
+      // キャッシュに保存
+      previewCache.set(cacheKey, blob);
+      console.log(`Preview cached with key: ${cacheKey}`);
+      
+      return blob;
+    } catch (e) {
+      console.error('Error reading output or creating blob:', e);
+      throw new Error(`出力ファイル処理エラー: ${e}`);
+    }
+  } catch (error) {
+    console.error(`Error creating preview for track ${track.id}:`, error);
+    if (error instanceof Error) {
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+    }
+    throw error;
+  }
+};
+
+/**
+ * プレビューキャッシュを削除する
+ */
+export const clearPreviewCache = (): void => {
+  previewCache.clear();
+  console.log('Preview cache cleared');
 };
 
 export const downloadTracksAsZip = async (

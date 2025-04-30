@@ -14,9 +14,10 @@ import {
   detectTracks,
   extractTracks,
   downloadTracksAsZip,
+  createTrackPreview,
+  clearPreviewCache,
   type Track,
   type TrackDetectionOptions,
-  defaultTrackDetectionOptions
 } from "@/lib/audio-processing";
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   const [tracks, setTracks] = useState<Track[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [trackUrls, setTrackUrls] = useState<string[]>([]);
+  const [previewUrls, setPreviewUrls] = useState<Map<number, string>>(new Map());
   
   const { toast } = useToast();
 
@@ -54,13 +56,27 @@ export default function Home() {
 
     // Cleanup URLs on unmount
     return () => {
+      // 抽出ファイルのURLをクリーンアップ
       trackUrls.forEach(url => URL.revokeObjectURL(url));
+      
+      // プレビューURLもクリーンアップ
+      previewUrls.forEach(url => URL.revokeObjectURL(url));
+      
+      // プレビューキャッシュもクリア
+      clearPreviewCache();
     };
-  }, []);
+  }, [trackUrls, previewUrls, toast]);
 
   const handleFileSelected = useCallback((file: File) => {
     // Cleanup previous URLs
     trackUrls.forEach(url => URL.revokeObjectURL(url));
+    
+    // プレビューURLもクリーンアップ
+    previewUrls.forEach(url => URL.revokeObjectURL(url));
+    setPreviewUrls(new Map());
+    
+    // プレビューキャッシュをクリア
+    clearPreviewCache();
     
     setAudioFile(file);
     setTracks([]);
@@ -72,7 +88,64 @@ export default function Home() {
       title: "ファイルを選択しました",
       description: file.name,
     });
-  }, [trackUrls]);
+  }, [trackUrls, previewUrls]);
+  
+  // トラックのプレビュー再生処理
+  const handlePreviewTrack = useCallback(async (trackId: number): Promise<string | undefined> => {
+    if (!ffmpeg || !audioFile || !tracks.length) return undefined;
+    
+    try {
+      // 対象のトラックを見つける
+      const track = tracks.find(t => t.id === trackId);
+      if (!track) return undefined;
+      
+      // すでにプレビューURLがあるか確認
+      if (previewUrls.has(trackId)) {
+        try {
+          // キャッシュされているURLを返す
+          const url = previewUrls.get(trackId);
+          console.log(`Using cached preview URL for track ${trackId}`);
+          
+          // 有効性チェックは省略 (Blobベースのオブジェクトなので通常は有効)
+          return url;
+        } catch (e) {
+          console.warn(`Error with cached URL for track ${trackId}:`, e);
+          // キャッシュから削除してリトライ
+          const url = previewUrls.get(trackId);
+          if (url) URL.revokeObjectURL(url);
+          setPreviewUrls(prev => {
+            const newMap = new Map(prev);
+            newMap.delete(trackId);
+            return newMap;
+          });
+        }
+      }
+      
+      // プレビュー用の音声を生成
+      const previewBlob = await createTrackPreview(ffmpeg, audioFile, track, 10);
+      
+      // BlobからURLを作成
+      const previewUrl = URL.createObjectURL(previewBlob);
+      
+      // URLを保存
+      setPreviewUrls(prev => {
+        const newMap = new Map(prev);
+        newMap.set(trackId, previewUrl);
+        return newMap;
+      });
+      
+      // 生成したURLを返す
+      return previewUrl;
+    } catch (error) {
+      console.error('プレビュー作成エラー:', error);
+      toast({
+        title: "エラー",
+        description: "プレビューの作成中にエラーが発生しました",
+        variant: "destructive",
+      });
+      return undefined;
+    }
+  }, [ffmpeg, audioFile, tracks, previewUrls, toast]);
 
   const handleDetectTracks = useCallback(async (options: TrackDetectionOptions) => {
     if (!ffmpeg || !audioFile) return;
@@ -110,7 +183,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
     }
-  }, [ffmpeg, audioFile]);
+  }, [ffmpeg, audioFile, toast]);
 
   const handleTrackToggle = useCallback((trackId: number, selected: boolean) => {
     setTracks(prevTracks => 
@@ -120,27 +193,7 @@ export default function Home() {
     );
   }, []);
 
-  const handleTrackIndicesChange = useCallback((indices: number[]) => {
-    setSelectedIndices(indices);
-    
-    // 選択状態を更新
-    if (indices.length > 0) {
-      setTracks(prevTracks => 
-        prevTracks.map(track => ({
-          ...track,
-          selected: indices.includes(track.id + 1) // +1 since UI shows 1-based indices
-        }))
-      );
-    } else {
-      // インデックスが指定されていない場合は全非選択に戻す
-      setTracks(prevTracks => 
-        prevTracks.map(track => ({
-          ...track,
-          selected: false
-        }))
-      );
-    }
-  }, []);
+
 
   const handleExtractSelected = useCallback(async () => {
     if (!ffmpeg || !audioFile || tracks.length === 0) return;
@@ -200,7 +253,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
     }
-  }, [ffmpeg, audioFile, tracks, trackUrls]);
+  }, [ffmpeg, audioFile, tracks, trackUrls, toast]);
 
   const handleDownloadAll = useCallback(() => {
     if (!audioFile || trackUrls.length === 0) return;
@@ -226,7 +279,7 @@ export default function Home() {
         description: "ZIPファイルのダウンロードが開始されました",
       });
     });
-  }, [audioFile, tracks, trackUrls]);
+  }, [audioFile, tracks, trackUrls, toast]);
 
   return (
     <main className="container max-w-4xl mx-auto py-8 px-4">
@@ -253,9 +306,7 @@ export default function Home() {
               <h2 className="text-xl font-bold mb-4">2. 設定と分割</h2>
               <ExtractionControls
                 onDetectTracks={handleDetectTracks}
-                onTrackIndicesChange={handleTrackIndicesChange}
                 isProcessing={isProcessing}
-                hasTracksDetected={tracks.length > 0}
                 hasAudioFile={audioFile !== null}
               />
             </div>
@@ -292,6 +343,9 @@ export default function Home() {
               <TrackList
                 tracks={tracks}
                 onTrackToggle={handleTrackToggle}
+                ffmpeg={ffmpeg}
+                audioFile={audioFile}
+                onPreviewPlay={handlePreviewTrack}
               />
               
               {/* 「選択した曲を抽出」ボタンをリストの下に配置 */}

@@ -66,8 +66,12 @@ export function DownloadLinks({
     <div className="border rounded-md p-4 my-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">ダウンロード</h2>
-        <Button onClick={onDownloadAll} className="flex items-center gap-2">
-          <Download className="h-4 w-4" />
+        <Button 
+          onClick={onDownloadAll} 
+          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+          size="lg"
+        >
+          <Download className="h-5 w-5" />
           全てダウンロード (ZIP)
         </Button>
       </div>
@@ -107,7 +111,7 @@ export function DownloadLinks({
               <a
                 href={url}
                 download={editedFilenames[index] || filename}
-                className="text-primary hover:text-primary/80 flex items-center gap-1"
+                className="flex items-center gap-1 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded-full text-sm font-medium transition-colors"
               >
                 <Download className="h-4 w-4" />
                 ダウンロード
