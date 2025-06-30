@@ -69,7 +69,7 @@ export default function Home() {
   }, [cleanup]);
 
   // トラック検出を行うラッパー関数
-  const onDetectTracks = async (options) => {
+  const onDetectTracks = async (options: any) => {
     await handleDetectTracks(ffmpeg, audioFile, options);
   };
 
@@ -79,7 +79,7 @@ export default function Home() {
   };
 
   // プレビュー再生を行うラッパー関数
-  const onPreviewTrack = async (trackId) => {
+  const onPreviewTrack = async (trackId: number) => {
     return await handlePreviewTrack(
       trackId,
       ffmpeg,

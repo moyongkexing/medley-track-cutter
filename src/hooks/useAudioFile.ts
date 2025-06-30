@@ -19,7 +19,7 @@ export function useAudioFile() {
         URL.revokeObjectURL(url);
       }
       
-      for (const url of previewUrls.values()) {
+      for (const url of Array.from(previewUrls.values())) {
         URL.revokeObjectURL(url);
       }
       
@@ -45,7 +45,7 @@ export function useAudioFile() {
       URL.revokeObjectURL(url);
     }
     
-    for (const url of previewUrls.values()) {
+    for (const url of Array.from(previewUrls.values())) {
       URL.revokeObjectURL(url);
     }
     

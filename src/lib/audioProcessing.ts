@@ -604,7 +604,7 @@ export const createTrackPreview = async (
       console.log(`Reading output file: ${previewFilename}`);
       // 出力ファイルを読み込む
       const data = await ffmpeg.readFile(previewFilename);
-      console.log(`Preview file read, size: ${data.byteLength} bytes`);
+      console.log(`Preview file read, size: ${(data as Uint8Array).byteLength} bytes`);
       
       // Blobオブジェクトを作成（明示的にMIMEタイプを指定）
       const blob = new Blob([data], { type: "audio/mpeg" });
